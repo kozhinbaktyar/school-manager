@@ -340,35 +340,43 @@
 
             if (!cardId || !name || !sClass) return;
 
-            // ئاگاداری لە دووبارەبوونی cardId تەنیا لە کاتی زیادکردنی نوێدا
-            if (!editingCardId) {
-                const existing = await getDoc(doc(db, "students", cardId));
-                if (existing.exists()) {
-                    const ok = confirm(`ژمارەی کارت "${cardId}" پێشتر بۆ قوتابییەکی تر تۆمارکراوە (${existing.data().name}). ئایا دەتەوێت نوێی بکەیتەوە؟`);
-                    if (!ok) return;
+            const submitBtn = document.querySelector('#student-form .btn-save');
+            const originalBtnText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'چاوەڕوانبە...';
+
+            try {
+                // ئاگاداری لە دووبارەبوونی cardId تەنیا لە کاتی زیادکردنی نوێدا
+                if (!editingCardId) {
+                    const existing = await getDoc(doc(db, "students", cardId));
+                    if (existing.exists()) {
+                        const ok = confirm(`ژمارەی کارت "${cardId}" پێشتر بۆ قوتابییەکی تر تۆمارکراوە (${existing.data().name}). ئایا دەتەوێت نوێی بکەیتەوە؟`);
+                        if (!ok) { submitBtn.disabled = false; submitBtn.textContent = originalBtnText; return; }
+                    }
                 }
-            }
 
-            const payload = { cardId, name, class: sClass };
+                const payload = { cardId, name, class: sClass };
 
-            // تەنیا ئەگەر وێنەیەکی نوێ هەبێت imageUrl دەنووسین، بۆ ئەوەی وێنەی پێشوو نەسڕدرێتەوە
-            if (capturedImageBase64) {
-                try {
+                // تەنیا ئەگەر وێنەیەکی نوێ هەبێت imageUrl دەنووسین، بۆ ئەوەی وێنەی پێشوو نەسڕدرێتەوە
+                if (capturedImageBase64) {
                     const storageRef = ref(storage, `students/${cardId}.jpg`);
                     await uploadString(storageRef, capturedImageBase64, 'data_url');
                     payload.imageUrl = await getDownloadURL(storageRef);
-                } catch (err) {
-                    alert("هەڵە لە بارکردنی وێنە: " + err);
-                    return;
                 }
-            }
 
-            try {
                 await setDoc(doc(db, "students", cardId), payload, { merge: true });
                 alert("قوتابی پاشکەوتکرا!");
                 resetForm();
             } catch (err) {
-                alert("هەڵە لە پاشکەوتکردن: " + err);
+                console.error('هەڵەی تۆمارکردنی قوتابی:', err);
+                let msg = err && err.message ? err.message : String(err);
+                if (err && err.code === 'permission-denied') {
+                    msg = 'ڕێگەت پێنەدراوە بنووسیت (permission-denied). پێویستە Firestore Security Rules‌ت لە Firebase Console پشکنیت و دڵنیابیتەوە کە کراوەیە یان deploy کراوە.';
+                }
+                alert("هەڵە لە پاشکەوتکردن: " + msg);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalBtnText;
             }
         });
 
